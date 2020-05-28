@@ -77,8 +77,9 @@ GstPadProbeReturn soundCardProbe(GstPad* pad, GstPadProbeInfo* info, gpointer da
 	GstBuffer* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
 	elemStruct* mainElem = (elemStruct*)data;
 	g_print("received data in the soundcard probe ");
-	//GstElement* bin = mainElem->soundCardBin;
-	//bool add = gst_bin_add(GST_BIN(mainElem->audioBin), mainElem->soundCardBin);
+
+	GstElement* bin = mainElem->soundCardBin;
+	bool add = gst_bin_add(GST_BIN(mainPipeline) ,mainElem->soundCardBin);
 	//gst_element_sync_state_with_parent(mainElem->soundCardBin);
 	//GstElement* queue = gst_bin_get_by_name((GST_BIN(bin)), "sound_card_source_queue");
 	//GstPad* mixpad = retrieve_ghost_pad(bin, mainElem->soundCardSrcQueue);
@@ -86,7 +87,7 @@ GstPadProbeReturn soundCardProbe(GstPad* pad, GstPadProbeInfo* info, gpointer da
 
 	//link_to_mixer(mixPad, mainElem->audioMixer);
 	//addsoundsrc_toMainline(info, bin);
-	return GST_PAD_PROBE_DROP;
+	return GST_PAD_PROBE_PASS;
 }
 void set_queue_property(GstElement* _queue)
 {
@@ -298,18 +299,25 @@ int main(int argc, char** argv)
 
 
 	// add the src elements to each src bin
-	gst_bin_add_many(GST_BIN(mainPipeline), mainStruct->micSource, mainStruct->micSourceQueue, mainStruct->soundCardSrc, mainStruct->soundCardSrcQueue,  NULL);
-
+	gst_bin_add_many(GST_BIN(mainPipeline), mainStruct->micSource, mainStruct->micSourceQueue, NULL);
+	mainStruct->soundCardBin = gst_bin_new("sound_card_bin");
+	gst_bin_add_many(GST_BIN(mainStruct->soundCardBin), mainStruct->soundCardSrc, mainStruct->soundCardSrcQueue, NULL);
+	gst_element_link_many(mainStruct->soundCardSrc, mainStruct->soundCardSrcQueue,NULL);
+	GstPad* soundSourceprober = gst_element_get_static_pad(mainStruct->soundCardSrc, "src");
+	//gst_pad_add_probe(soundSourceprober, GST_PAD_PROBE_TYPE_BUFFER, soundCardProbe, &mainStruct, NULL);
+	//gst_pad_add_probe(soundSourceprober, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, soundCardProbe, &mainStruct, NULL);
+	gst_element_set_state(mainStruct->soundCardBin, GST_STATE_PLAYING);
 
 	// link elements in each source bin
 	gst_element_link(mainStruct->micSource, mainStruct->micSourceQueue);
-	gst_element_link_many(mainStruct->soundCardSrc, mainStruct->soundCardSrcQueue, NULL);
+	//gst_element_link_many(mainStruct->soundCardSrc, mainStruct->soundCardSrcQueue, NULL);
+	
+	
 
 	// put this two bin in audiobin, we will connect audiobin to screenBin later
 	gst_bin_add_many(GST_BIN(mainPipeline),mainStruct->audioMixer, mainStruct->audioMixerQueue, mainStruct->audioEncoder, mainStruct->audioEncoderQueue, NULL);	
 
-	//GstPad* soundSourceprober = gst_element_get_static_pad(mainStruct->soundCardSrc, "src");
-	//gst_pad_add_probe(soundSourceprober, GST_PAD_PROBE_TYPE_BUFFER, soundCardProbe, &mainStruct, NULL);
+	
 	//GstStateChangeReturn ret = gst_element_set_state(mainStruct->soundCardSrc, GST_STATE_PLAYING);
 	//GstStateChangeReturn retu = gst_element_get_state(mainStruct->soundCardSrc);
 
@@ -317,8 +325,8 @@ int main(int argc, char** argv)
 
 	mainStruct->micMixPad = gst_element_get_static_pad(mainStruct->micSourceQueue, "src");
 	link_to_mixer(mainStruct->micMixPad, mainStruct->audioMixer);
-	mainStruct->soundCardMixPad = gst_element_get_static_pad(mainStruct->soundCardSrcQueue, "src");
-	link_to_mixer(mainStruct->soundCardMixPad, mainStruct->audioMixer);
+	//mainStruct->soundCardMixPad = gst_element_get_static_pad(mainStruct->soundCardSrcQueue, "src");
+	//link_to_mixer(mainStruct->soundCardMixPad, mainStruct->audioMixer);
 
 	bool one_ = gst_element_link_many(mainStruct->audioMixer, mainStruct->audioMixerQueue, mainStruct->audioEncoder, mainStruct->audioEncoderQueue, NULL);
 
